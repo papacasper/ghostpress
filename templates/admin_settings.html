@@ -7,6 +7,8 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="text" name="site_name" placeholder="site name" value="{{ site_name }}" required>
   <input type="text" name="site_url" placeholder="site url (e.g. http://yourdomain.onion) — used in the RSS feed" value="{{ site_url | default(value='') }}">
+  <label for="custom_css">custom css (appended after the default theme, so it can override anything)</label>
+  <textarea id="custom_css" name="custom_css" rows="12" placeholder="body { font-family: serif; }">{{ custom_css | default(value='') }}</textarea>
   <button type="submit">save</button>
 </form>
 <p><a href="/admin">back to admin</a></p>

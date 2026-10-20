@@ -92,11 +92,15 @@ fn not_found(state: &AppState, cookies: &Cookies) -> Response {
 /// calling this (std::sync::Mutex is not reentrant).
 fn base_ctx(state: &AppState, cookies: &Cookies, logged_in: bool) -> Context {
     let mut ctx = Context::new();
-    let name = {
+    let (name, custom_css) = {
         let conn = state.db.0.lock().unwrap();
-        db::get_setting(&conn, "site_name", DEFAULT_SITE_NAME)
+        (
+            db::get_setting(&conn, "site_name", DEFAULT_SITE_NAME),
+            db::get_setting(&conn, "custom_css", ""),
+        )
     };
     ctx.insert("site_name", &name);
+    ctx.insert("custom_css", &custom_css);
     ctx.insert("logged_in", &logged_in);
     if logged_in {
         if let Some(cookie) = cookies.get(auth::SESSION_COOKIE) {
@@ -1066,6 +1070,7 @@ async fn password_submit(
 struct SettingsForm {
     site_name: String,
     site_url: Option<String>,
+    custom_css: Option<String>,
     csrf_token: String,
 }
 
@@ -1096,12 +1101,16 @@ async fn settings_submit(
     let name = form.site_name.trim();
     let name = if name.is_empty() { DEFAULT_SITE_NAME } else { name };
     let site_url = form.site_url.unwrap_or_default().trim().to_string();
+    let custom_css = form.custom_css.unwrap_or_default();
     {
         let conn = state.db.0.lock().unwrap();
         db::set_setting(&conn, "site_name", name);
         db::set_setting(&conn, "site_url", &site_url);
+        db::set_setting(&conn, "custom_css", &custom_css);
         db::log_action(&conn, "settings_changed", "");
     }
+    // base_ctx re-reads custom_css from the DB, so the saved value is
+    // reflected immediately without a second insert here.
     let mut ctx = base_ctx(&state, &cookies, true);
     ctx.insert("success", "settings saved");
     ctx.insert("site_url", &site_url);
