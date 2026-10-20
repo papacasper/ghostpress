@@ -83,10 +83,13 @@
     color: var(--bg);
   }
   button:hover { opacity: 0.85; }
+  .custom-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+                   color: var(--muted); font-size: 0.85rem; }
   {% if custom_css %}{{ custom_css | safe }}{% endif %}
 </style>
 </head>
 <body>
+{% if custom_header_html %}<div class="custom-header">{{ custom_header_html | safe }}</div>{% endif %}
 <nav>
   <a href="/">{{ site_name }}</a>
   {% if logged_in %}
@@ -99,6 +102,8 @@
     <a href="/admin/login">login</a>
   {% endif %}
 </nav>
+{% if custom_body_html %}<div class="custom-body">{{ custom_body_html | safe }}</div>{% endif %}
 {% block content %}{% endblock %}
+{% if custom_footer_html %}<footer class="custom-footer">{{ custom_footer_html | safe }}</footer>{% endif %}
 </body>
 </html>

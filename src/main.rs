@@ -92,15 +92,25 @@ fn not_found(state: &AppState, cookies: &Cookies) -> Response {
 /// calling this (std::sync::Mutex is not reentrant).
 fn base_ctx(state: &AppState, cookies: &Cookies, logged_in: bool) -> Context {
     let mut ctx = Context::new();
-    let (name, custom_css) = {
+    let (name, custom_css, header_html, body_html, footer_html) = {
         let conn = state.db.0.lock().unwrap();
         (
             db::get_setting(&conn, "site_name", DEFAULT_SITE_NAME),
             db::get_setting(&conn, "custom_css", ""),
+            db::get_setting(&conn, "custom_header_html", ""),
+            db::get_setting(&conn, "custom_body_html", ""),
+            db::get_setting(&conn, "custom_footer_html", ""),
         )
     };
     ctx.insert("site_name", &name);
     ctx.insert("custom_css", &custom_css);
+    // Sanitized at save time (see settings_submit) with the same ammonia
+    // pass used on post/page markdown, so this is safe to render raw here
+    // even though it's admin-supplied HTML — it still can't carry <script>
+    // or event-handler attributes, preserving the zero-JS guarantee.
+    ctx.insert("custom_header_html", &header_html);
+    ctx.insert("custom_body_html", &body_html);
+    ctx.insert("custom_footer_html", &footer_html);
     ctx.insert("logged_in", &logged_in);
     if logged_in {
         if let Some(cookie) = cookies.get(auth::SESSION_COOKIE) {
@@ -1071,6 +1081,9 @@ struct SettingsForm {
     site_name: String,
     site_url: Option<String>,
     custom_css: Option<String>,
+    custom_header_html: Option<String>,
+    custom_body_html: Option<String>,
+    custom_footer_html: Option<String>,
     csrf_token: String,
 }
 
@@ -1102,14 +1115,24 @@ async fn settings_submit(
     let name = if name.is_empty() { DEFAULT_SITE_NAME } else { name };
     let site_url = form.site_url.unwrap_or_default().trim().to_string();
     let custom_css = form.custom_css.unwrap_or_default();
+    // Sanitized the same way post/page bodies are, so admin-supplied markup
+    // can never reintroduce <script> or inline event handlers — the no-JS
+    // guarantee has to hold even against a careless admin paste, since it's
+    // the whole reason this CMS is safe to run as a Tor hidden service.
+    let header_html = ammonia::clean(&form.custom_header_html.unwrap_or_default());
+    let body_html = ammonia::clean(&form.custom_body_html.unwrap_or_default());
+    let footer_html = ammonia::clean(&form.custom_footer_html.unwrap_or_default());
     {
         let conn = state.db.0.lock().unwrap();
         db::set_setting(&conn, "site_name", name);
         db::set_setting(&conn, "site_url", &site_url);
         db::set_setting(&conn, "custom_css", &custom_css);
+        db::set_setting(&conn, "custom_header_html", &header_html);
+        db::set_setting(&conn, "custom_body_html", &body_html);
+        db::set_setting(&conn, "custom_footer_html", &footer_html);
         db::log_action(&conn, "settings_changed", "");
     }
-    // base_ctx re-reads custom_css from the DB, so the saved value is
+    // base_ctx re-reads everything from the DB, so the saved values are
     // reflected immediately without a second insert here.
     let mut ctx = base_ctx(&state, &cookies, true);
     ctx.insert("success", "settings saved");

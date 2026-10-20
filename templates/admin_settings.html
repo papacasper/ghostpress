@@ -9,6 +9,17 @@
   <input type="text" name="site_url" placeholder="site url (e.g. http://yourdomain.onion) — used in the RSS feed" value="{{ site_url | default(value='') }}">
   <label for="custom_css">custom css (appended after the default theme, so it can override anything)</label>
   <textarea id="custom_css" name="custom_css" rows="12" placeholder="body { font-family: serif; }">{{ custom_css | default(value='') }}</textarea>
+
+  <label for="custom_header_html">custom header html (shown at the very top of every page, above the nav)</label>
+  <textarea id="custom_header_html" name="custom_header_html" rows="4" placeholder="&lt;p&gt;a banner&lt;/p&gt;">{{ custom_header_html | default(value='') }}</textarea>
+
+  <label for="custom_body_html">custom body html (shown below the nav, above each page's own content)</label>
+  <textarea id="custom_body_html" name="custom_body_html" rows="4" placeholder="&lt;p&gt;an announcement&lt;/p&gt;">{{ custom_body_html | default(value='') }}</textarea>
+
+  <label for="custom_footer_html">custom footer html (shown at the very bottom of every page)</label>
+  <textarea id="custom_footer_html" name="custom_footer_html" rows="4" placeholder="&lt;p&gt;&amp;copy; your site&lt;/p&gt;">{{ custom_footer_html | default(value='') }}</textarea>
+
+  <p style="color: var(--muted); font-size: 0.85rem;">html fields are sanitized on save — scripts and event handlers are always stripped, even here.</p>
   <button type="submit">save</button>
 </form>
 <p><a href="/admin">back to admin</a></p>
