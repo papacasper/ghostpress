@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ site_name }}{% endblock %}</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #141414;
+    --bg-raised: #1f1f1f;
+    --fg: #ffffff;
+    --muted: #b3b3b3;
+    --border: #2a2a2a;
+    --accent: #e50914;
+    --accent-hover: #f6121d;
+    --err: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 4vw 3rem;
+    font-family: "Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--fg);
+    background: var(--bg);
+  }
+  a { color: var(--fg); text-decoration: none; }
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin: 0 -4vw 2.5rem;
+    padding: 1.1rem 4vw;
+    background: linear-gradient(to bottom, rgba(20,20,20,0.95) 10%, rgba(20,20,20,0));
+  }
+  nav a:first-child {
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-size: 1.5rem;
+    margin-right: auto;
+  }
+  nav a, nav button {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  nav a:hover, nav button:hover { color: var(--fg); }
+  h1, h2, h3 { line-height: 1.25; font-weight: 700; }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.1rem; }
+  article { max-width: 46rem; margin: 0 auto 2.5rem; }
+  time { color: var(--muted); font-size: 0.85rem; }
+  textarea, input, button {
+    font-family: inherit;
+    font-size: 1rem;
+  }
+  textarea, input[type="text"], input[type="password"] {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-raised);
+    color: var(--fg);
+  }
+  textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .err { color: var(--err); }
+  form.inline { display: inline; }
+  button {
+    cursor: pointer;
+    padding: 0.55rem 1.1rem;
+    border: none;
+    border-radius: 4px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  button:hover { background: var(--accent-hover); }
+  .custom-footer {
+    margin-top: 3.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  {% if custom_css %}{{ custom_css | safe }}{% endif %}
+</style>
+</head>
+<body>
+{% if custom_header_html %}<div class="custom-header">{{ custom_header_html | safe }}</div>{% endif %}
+<nav>
+  <a href="/">{{ site_name }}</a>
+  {% if logged_in %}
+    <a href="/admin">admin</a>
+    <form class="inline" method="post" action="/admin/logout">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" style="background:transparent;color:var(--muted);padding:0;font-weight:400;">logout</button>
+    </form>
+  {% else %}
+    <a href="/admin/login">login</a>
+  {% endif %}
+</nav>
+{% if custom_body_html %}<div class="custom-body">{{ custom_body_html | safe }}</div>{% endif %}
+{% block content %}{% endblock %}
+{% if custom_footer_html %}<footer class="custom-footer">{{ custom_footer_html | safe }}</footer>{% endif %}
+</body>
+</html>

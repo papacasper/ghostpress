@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}#{{ tag }} — {{ site_name }}{% endblock %}
+{% block content %}
+<style>
+  .row-title { font-size: 1.3rem; margin: 0 0 1rem; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+  .card {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: 6px;
+    overflow: hidden;
+    display: block;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card:hover {
+    transform: scale(1.06);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.6);
+    z-index: 2;
+  }
+  .card:nth-child(6n+1) { background: linear-gradient(135deg, #8e0e00, #1f1c18); }
+  .card:nth-child(6n+2) { background: linear-gradient(135deg, #0f2027, #2c5364); }
+  .card:nth-child(6n+3) { background: linear-gradient(135deg, #654ea3, #eaafc8); }
+  .card:nth-child(6n+4) { background: linear-gradient(135deg, #1e3c72, #2a5298); }
+  .card:nth-child(6n+5) { background: linear-gradient(135deg, #434343, #000000); }
+  .card:nth-child(6n+6) { background: linear-gradient(135deg, #b91d73, #f953c6); }
+  .card-overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 0.75rem 0.85rem;
+    background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0));
+  }
+  .card-overlay h2 { margin: 0 0 0.2rem; font-size: 1rem; }
+  .card-overlay time { font-size: 0.75rem; }
+</style>
+<h1 class="row-title">#{{ tag }}</h1>
+<div class="grid">
+  {% for post in posts %}
+  <a class="card" href="/post/{{ post.slug }}">
+    <div class="card-overlay">
+      <h2>{{ post.title }}</h2>
+      <time>{{ post.created_at }}</time>
+    </div>
+  </a>
+  {% else %}
+  <p>No posts tagged "{{ tag }}".</p>
+  {% endfor %}
+</div>
+{% endblock %}
