@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+{% for post in posts %}
+<div class="post-list-item">
+  <h2><a href="/post/{{ post.slug }}">{{ post.title }}</a></h2>
+  <time>{{ post.created_at }}</time>
+</div>
+{% else %}
+<p>No posts yet.</p>
+{% endfor %}
+<p>
+  {% if has_prev %}<a href="/?page={{ page - 1 }}">&larr; newer</a>{% endif %}
+  {% if has_prev and has_next %} · {% endif %}
+  {% if has_next %}<a href="/?page={{ page + 1 }}">older &rarr;</a>{% endif %}
+</p>
+{% endblock %}

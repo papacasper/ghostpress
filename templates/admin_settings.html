@@ -7,7 +7,15 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="text" name="site_name" placeholder="site name" value="{{ site_name }}" required>
   <input type="text" name="site_url" placeholder="site url (e.g. http://yourdomain.onion) — used in the RSS feed" value="{{ site_url | default(value='') }}">
-  <label for="custom_css">custom css (appended after the default theme, so it can override anything)</label>
+
+  <label for="theme">theme (full HTML + CSS; each one lives in its own folder under themes/)</label>
+  <select id="theme" name="theme">
+    {% for t in available_themes %}
+    <option value="{{ t }}" {% if t == theme %}selected{% endif %}>{{ t }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="custom_css">custom css (appended after the active theme's own CSS, so it can override anything)</label>
   <textarea id="custom_css" name="custom_css" rows="12" placeholder="body { font-family: serif; }">{{ custom_css | default(value='') }}</textarea>
 
   <label for="custom_header_html">custom header html (shown at the very top of every page, above the nav)</label>

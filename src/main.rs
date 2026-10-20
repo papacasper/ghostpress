@@ -22,6 +22,56 @@ const DEFAULT_SITE_NAME: &str = "ghostpress";
 const DB_PATH: &str = "cms.db";
 const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8899"; // loopback only — pair with a Tor HiddenServiceDir
 const DEFAULT_POSTS_PER_PAGE: i64 = 10;
+const DEFAULT_THEME: &str = "default";
+
+/// Lists the `.html` files directly inside `dir` (non-recursive — both
+/// `templates/` and each `themes/<name>/` are flat).
+fn html_files_in(dir: &str) -> Vec<std::path::PathBuf> {
+    std::fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("read directory '{dir}': {e}"))
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|ext| ext == "html"))
+        .collect()
+}
+
+/// Builds one `Tera` per subdirectory of `themes/` — each theme owns the
+/// public-facing templates (base/index/post/page/tag/404) plus the shared
+/// admin templates in `templates/` (identical across all themes, so the
+/// admin UI never changes when a theme is switched). Everything has to be
+/// registered in one `add_template_files` call so Tera can resolve
+/// `{% extends "base.html" %}` in the shared templates against the theme's
+/// own base.html — building them as two separate `Tera` instances and
+/// merging afterwards fails, because the shared templates can't validate
+/// their inheritance chain standalone.
+fn load_themes() -> std::collections::HashMap<String, Tera> {
+    let shared_paths = html_files_in("templates");
+    let mut themes = std::collections::HashMap::new();
+    let entries = std::fs::read_dir("themes").expect("read themes directory");
+    for entry in entries.filter_map(Result::ok) {
+        if !entry.path().is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let theme_paths = html_files_in(&format!("themes/{name}"));
+        let files: Vec<(std::path::PathBuf, Option<String>)> = shared_paths
+            .iter()
+            .chain(theme_paths.iter())
+            .map(|p| {
+                let file_name = p.file_name().unwrap().to_string_lossy().into_owned();
+                (p.clone(), Some(file_name))
+            })
+            .collect();
+        let mut tera = Tera::default();
+        tera.add_template_files(files).unwrap_or_else(|e| panic!("load theme '{name}': {e}"));
+        themes.insert(name, tera);
+    }
+    assert!(
+        themes.contains_key(DEFAULT_THEME),
+        "themes/{DEFAULT_THEME}/ must exist"
+    );
+    themes
+}
 
 /// Reads an env var and parses it, falling back to `default` if unset or
 /// unparseable. Lets a migrated/relocated instance tune a few knobs
@@ -32,7 +82,7 @@ fn env_or<T: std::str::FromStr>(key: &str, default: T) -> T {
 
 struct AppState {
     db: db::Db,
-    tera: Tera,
+    themes: std::collections::HashMap<String, Tera>,
     csrf_secret: [u8; 32],
     posts_per_page: i64,
     /// Generated once at startup if no admin account exists yet; required
@@ -72,6 +122,20 @@ fn require_auth(state: &AppState, cookies: &Cookies) -> Result<i64, Redirect> {
     current_user(state, cookies).ok_or_else(|| Redirect::to("/admin/login"))
 }
 
+/// Picks the `Tera` for the site's currently configured theme (falling back
+/// to the default theme if the setting names one that no longer exists on
+/// disk, e.g. after a theme folder was removed).
+fn active_tera(state: &AppState) -> &Tera {
+    let name = {
+        let conn = state.db.0.lock().unwrap();
+        db::get_setting(&conn, "theme", DEFAULT_THEME)
+    };
+    state
+        .themes
+        .get(&name)
+        .unwrap_or_else(|| state.themes.get(DEFAULT_THEME).expect("default theme always loaded"))
+}
+
 fn render(tera: &Tera, name: &str, ctx: &Context) -> Html<String> {
     match tera.render(name, ctx) {
         Ok(body) => Html(body),
@@ -82,7 +146,7 @@ fn render(tera: &Tera, name: &str, ctx: &Context) -> Html<String> {
 fn not_found(state: &AppState, cookies: &Cookies) -> Response {
     let logged_in = current_user(state, cookies).is_some();
     let ctx = base_ctx(state, cookies, logged_in);
-    (StatusCode::NOT_FOUND, render(&state.tera, "404.html", &ctx)).into_response()
+    (StatusCode::NOT_FOUND, render(active_tera(&state), "404.html", &ctx)).into_response()
 }
 
 /// Builds the context every page needs: the (runtime-configurable) site
@@ -169,7 +233,7 @@ async fn index(State(state): State<Arc<AppState>>, cookies: Cookies, Query(q): Q
     ctx.insert("page", &page);
     ctx.insert("has_next", &has_next);
     ctx.insert("has_prev", &(page > 1));
-    render(&state.tera, "index.html", &ctx)
+    render(active_tera(&state), "index.html", &ctx)
 }
 
 fn row_to_post(row: &rusqlite::Row) -> rusqlite::Result<PostRow> {
@@ -207,7 +271,7 @@ async fn show_post(
             let mut ctx = base_ctx(&state, &cookies, logged_in);
             ctx.insert("post", &p);
             ctx.insert("tags", &tags);
-            render(&state.tera, "post.html", &ctx).into_response()
+            render(active_tera(&state), "post.html", &ctx).into_response()
         }
         _ => not_found(&state, &cookies),
     }
@@ -234,7 +298,7 @@ async fn show_page(
         Some(p) if p.published || logged_in => {
             let mut ctx = base_ctx(&state, &cookies, logged_in);
             ctx.insert("page", &p);
-            render(&state.tera, "page.html", &ctx).into_response()
+            render(active_tera(&state), "page.html", &ctx).into_response()
         }
         _ => not_found(&state, &cookies),
     }
@@ -264,7 +328,7 @@ async fn show_tag(
     let mut ctx = base_ctx(&state, &cookies, logged_in);
     ctx.insert("tag", &tag);
     ctx.insert("posts", &posts);
-    render(&state.tera, "tag.html", &ctx).into_response()
+    render(active_tera(&state), "tag.html", &ctx).into_response()
 }
 
 async fn feed_xml(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
@@ -365,7 +429,7 @@ async fn setup_page(
     let mut ctx = base_ctx(&state, &cookies, false);
     // Convenience prefill only — the real check is on submit.
     ctx.insert("token_value", &q.token.unwrap_or_default());
-    render(&state.tera, "setup.html", &ctx).into_response()
+    render(active_tera(&state), "setup.html", &ctx).into_response()
 }
 
 #[derive(Deserialize)]
@@ -407,7 +471,7 @@ async fn setup_submit(
         let mut ctx = base_ctx(&state, &cookies, false);
         ctx.insert("error", e);
         ctx.insert("token_value", &form.token);
-        return render(&state.tera, "setup.html", &ctx).into_response();
+        return render(active_tera(&state), "setup.html", &ctx).into_response();
     }
     let hash = auth::hash_password(&form.password);
     conn.execute(
@@ -436,7 +500,7 @@ async fn login_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> Res
         return Redirect::to("/setup").into_response();
     }
     let ctx = base_ctx(&state, &cookies, false);
-    render(&state.tera, "login.html", &ctx).into_response()
+    render(active_tera(&state), "login.html", &ctx).into_response()
 }
 
 async fn login_submit(
@@ -451,7 +515,7 @@ async fn login_submit(
         drop(conn);
         let mut ctx = base_ctx(&state, &cookies, false);
         ctx.insert("error", &format!("too many failed attempts — try again in {remaining} seconds"));
-        return render(&state.tera, "login.html", &ctx).into_response();
+        return render(active_tera(&state), "login.html", &ctx).into_response();
     }
 
     let user = auth::find_user_by_username(&conn, &form.username);
@@ -480,7 +544,7 @@ async fn login_submit(
         drop(conn);
         let mut ctx = base_ctx(&state, &cookies, false);
         ctx.insert("error", "invalid username or password");
-        render(&state.tera, "login.html", &ctx).into_response()
+        render(active_tera(&state), "login.html", &ctx).into_response()
     }
 }
 
@@ -518,7 +582,7 @@ async fn admin_dashboard(State(state): State<Arc<AppState>>, cookies: Cookies) -
     let mut ctx = base_ctx(&state, &cookies, true);
     ctx.insert("posts", &posts);
     ctx.insert("pages", &pages);
-    render(&state.tera, "admin_dashboard.html", &ctx).into_response()
+    render(active_tera(&state), "admin_dashboard.html", &ctx).into_response()
 }
 
 async fn new_post_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> Response {
@@ -527,7 +591,7 @@ async fn new_post_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> 
     }
     let mut ctx = base_ctx(&state, &cookies, true);
     ctx.insert("form_action", "/admin/new");
-    render(&state.tera, "admin_edit.html", &ctx).into_response()
+    render(active_tera(&state), "admin_edit.html", &ctx).into_response()
 }
 
 #[derive(Deserialize)]
@@ -581,7 +645,7 @@ async fn create_post(
         ctx.insert("post", &preview);
         ctx.insert("tags_value", &form.tags.clone().unwrap_or_default());
         ctx.insert("preview", &true);
-        return render(&state.tera, "admin_edit.html", &ctx).into_response();
+        return render(active_tera(&state), "admin_edit.html", &ctx).into_response();
     }
 
     let body_html = render_markdown(&form.body_md);
@@ -603,7 +667,7 @@ async fn create_post(
             let mut ctx = base_ctx(&state, &cookies, true);
             ctx.insert("form_action", "/admin/new");
             ctx.insert("error", "could not save post (slug already taken?)");
-            render(&state.tera, "admin_edit.html", &ctx).into_response()
+            render(active_tera(&state), "admin_edit.html", &ctx).into_response()
         }
     }
 }
@@ -635,7 +699,7 @@ async fn edit_post_page(
             ctx.insert("form_action", &format!("/admin/edit/{id}"));
             ctx.insert("post", &p);
             ctx.insert("tags_value", &tags_value);
-            render(&state.tera, "admin_edit.html", &ctx).into_response()
+            render(active_tera(&state), "admin_edit.html", &ctx).into_response()
         }
         None => not_found(&state, &cookies),
     }
@@ -661,7 +725,7 @@ async fn update_post(
         ctx.insert("post", &preview);
         ctx.insert("tags_value", &form.tags.clone().unwrap_or_default());
         ctx.insert("preview", &true);
-        return render(&state.tera, "admin_edit.html", &ctx).into_response();
+        return render(active_tera(&state), "admin_edit.html", &ctx).into_response();
     }
 
     let body_html = render_markdown(&form.body_md);
@@ -733,7 +797,7 @@ async fn revisions_page(
     let mut ctx = base_ctx(&state, &cookies, true);
     ctx.insert("post", &post);
     ctx.insert("revisions", &revisions);
-    render(&state.tera, "admin_revisions.html", &ctx).into_response()
+    render(active_tera(&state), "admin_revisions.html", &ctx).into_response()
 }
 
 #[derive(Deserialize)]
@@ -787,7 +851,7 @@ async fn new_page_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> 
     }
     let mut ctx = base_ctx(&state, &cookies, true);
     ctx.insert("form_action", "/admin/pages/new");
-    render(&state.tera, "admin_page_edit.html", &ctx).into_response()
+    render(active_tera(&state), "admin_page_edit.html", &ctx).into_response()
 }
 
 async fn create_page(
@@ -807,7 +871,7 @@ async fn create_page(
         ctx.insert("form_action", "/admin/pages/new");
         ctx.insert("page", &preview);
         ctx.insert("preview", &true);
-        return render(&state.tera, "admin_page_edit.html", &ctx).into_response();
+        return render(active_tera(&state), "admin_page_edit.html", &ctx).into_response();
     }
     let body_html = render_markdown(&form.body_md);
     let now = OffsetDateTime::now_utc();
@@ -825,7 +889,7 @@ async fn create_page(
         Err(_) => {
             let mut ctx = base_ctx(&state, &cookies, true);
             ctx.insert("error", "could not save page (slug already taken?)");
-            render(&state.tera, "admin_page_edit.html", &ctx).into_response()
+            render(active_tera(&state), "admin_page_edit.html", &ctx).into_response()
         }
     }
 }
@@ -852,7 +916,7 @@ async fn edit_page_page(
             let mut ctx = base_ctx(&state, &cookies, true);
             ctx.insert("form_action", &format!("/admin/pages/edit/{id}"));
             ctx.insert("page", &p);
-            render(&state.tera, "admin_page_edit.html", &ctx).into_response()
+            render(active_tera(&state), "admin_page_edit.html", &ctx).into_response()
         }
         None => not_found(&state, &cookies),
     }
@@ -876,7 +940,7 @@ async fn update_page(
         ctx.insert("form_action", &format!("/admin/pages/edit/{id}"));
         ctx.insert("page", &preview);
         ctx.insert("preview", &true);
-        return render(&state.tera, "admin_page_edit.html", &ctx).into_response();
+        return render(active_tera(&state), "admin_page_edit.html", &ctx).into_response();
     }
     let body_html = render_markdown(&form.body_md);
     let conn = state.db.0.lock().unwrap();
@@ -918,7 +982,7 @@ async fn upload_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> Re
         return Redirect::to("/admin/login").into_response();
     }
     let ctx = base_ctx(&state, &cookies, true);
-    render(&state.tera, "admin_upload.html", &ctx).into_response()
+    render(active_tera(&state), "admin_upload.html", &ctx).into_response()
 }
 
 async fn upload_submit(
@@ -970,7 +1034,7 @@ async fn upload_submit(
             let mut ctx = base_ctx(&state, &cookies, true);
             ctx.insert("markdown_snippet", &format!("![](/uploads/{filename})"));
             ctx.insert("uploaded_path", &format!("/uploads/{filename}"));
-            render(&state.tera, "admin_upload.html", &ctx).into_response()
+            render(active_tera(&state), "admin_upload.html", &ctx).into_response()
         }
         Err(e) => upload_error_page(&state, &cookies, &e.to_string()),
     }
@@ -979,7 +1043,7 @@ async fn upload_submit(
 fn upload_error_page(state: &AppState, cookies: &Cookies, msg: &str) -> Response {
     let mut ctx = base_ctx(state, cookies, true);
     ctx.insert("error", msg);
-    render(&state.tera, "admin_upload.html", &ctx).into_response()
+    render(active_tera(&state), "admin_upload.html", &ctx).into_response()
 }
 
 // ---- admin: media library ----
@@ -991,7 +1055,7 @@ async fn media_library(State(state): State<Arc<AppState>>, cookies: Cookies) -> 
     let files = uploads::list_media();
     let mut ctx = base_ctx(&state, &cookies, true);
     ctx.insert("files", &files);
-    render(&state.tera, "admin_media.html", &ctx).into_response()
+    render(active_tera(&state), "admin_media.html", &ctx).into_response()
 }
 
 #[derive(Deserialize)]
@@ -1026,7 +1090,7 @@ async fn password_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> 
         return Redirect::to("/admin/login").into_response();
     }
     let ctx = base_ctx(&state, &cookies, true);
-    render(&state.tera, "admin_password.html", &ctx).into_response()
+    render(active_tera(&state), "admin_password.html", &ctx).into_response()
 }
 
 #[derive(Deserialize)]
@@ -1073,13 +1137,14 @@ async fn password_submit(
         None => ctx.insert("success", "password updated"),
         Some(e) => ctx.insert("error", e),
     }
-    render(&state.tera, "admin_password.html", &ctx).into_response()
+    render(active_tera(&state), "admin_password.html", &ctx).into_response()
 }
 
 #[derive(Deserialize)]
 struct SettingsForm {
     site_name: String,
     site_url: Option<String>,
+    theme: Option<String>,
     custom_css: Option<String>,
     custom_header_html: Option<String>,
     custom_body_html: Option<String>,
@@ -1091,13 +1156,17 @@ async fn settings_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> 
     if require_auth(&state, &cookies).is_err() {
         return Redirect::to("/admin/login").into_response();
     }
-    let site_url = {
+    let (site_url, theme) = {
         let conn = state.db.0.lock().unwrap();
-        db::get_setting(&conn, "site_url", "")
+        (db::get_setting(&conn, "site_url", ""), db::get_setting(&conn, "theme", DEFAULT_THEME))
     };
+    let mut available_themes: Vec<&String> = state.themes.keys().collect();
+    available_themes.sort();
     let mut ctx = base_ctx(&state, &cookies, true);
     ctx.insert("site_url", &site_url);
-    render(&state.tera, "admin_settings.html", &ctx).into_response()
+    ctx.insert("theme", &theme);
+    ctx.insert("available_themes", &available_themes);
+    render(active_tera(&state), "admin_settings.html", &ctx).into_response()
 }
 
 async fn settings_submit(
@@ -1114,6 +1183,17 @@ async fn settings_submit(
     let name = form.site_name.trim();
     let name = if name.is_empty() { DEFAULT_SITE_NAME } else { name };
     let site_url = form.site_url.unwrap_or_default().trim().to_string();
+    // Falls back to whatever's already saved if the field is omitted or
+    // doesn't match any loaded theme folder (e.g. a stale option from a
+    // since-removed theme), rather than silently resetting it to default.
+    let theme = {
+        let conn = state.db.0.lock().unwrap();
+        let current = db::get_setting(&conn, "theme", DEFAULT_THEME);
+        match form.theme.as_deref().map(str::trim) {
+            Some(t) if state.themes.contains_key(t) => t.to_string(),
+            _ => current,
+        }
+    };
     let custom_css = form.custom_css.unwrap_or_default();
     // Sanitized the same way post/page bodies are, so admin-supplied markup
     // can never reintroduce <script> or inline event handlers — the no-JS
@@ -1126,6 +1206,7 @@ async fn settings_submit(
         let conn = state.db.0.lock().unwrap();
         db::set_setting(&conn, "site_name", name);
         db::set_setting(&conn, "site_url", &site_url);
+        db::set_setting(&conn, "theme", &theme);
         db::set_setting(&conn, "custom_css", &custom_css);
         db::set_setting(&conn, "custom_header_html", &header_html);
         db::set_setting(&conn, "custom_body_html", &body_html);
@@ -1134,10 +1215,14 @@ async fn settings_submit(
     }
     // base_ctx re-reads everything from the DB, so the saved values are
     // reflected immediately without a second insert here.
+    let mut available_themes: Vec<&String> = state.themes.keys().collect();
+    available_themes.sort();
     let mut ctx = base_ctx(&state, &cookies, true);
     ctx.insert("success", "settings saved");
     ctx.insert("site_url", &site_url);
-    render(&state.tera, "admin_settings.html", &ctx).into_response()
+    ctx.insert("theme", &theme);
+    ctx.insert("available_themes", &available_themes);
+    render(active_tera(&state), "admin_settings.html", &ctx).into_response()
 }
 
 // ---- admin: audit log ----
@@ -1152,7 +1237,7 @@ async fn audit_log_page(State(state): State<Arc<AppState>>, cookies: Cookies) ->
     };
     let mut ctx = base_ctx(&state, &cookies, true);
     ctx.insert("entries", &entries);
-    render(&state.tera, "admin_audit.html", &ctx).into_response()
+    render(active_tera(&state), "admin_audit.html", &ctx).into_response()
 }
 
 // ---- server hardening ----
@@ -1224,7 +1309,7 @@ async fn main() {
         return;
     }
 
-    let tera = Tera::new("templates/**/*.html").expect("load templates");
+    let themes = load_themes();
     let db = db::open(DB_PATH);
     let setup_token = {
         let conn = db.0.lock().unwrap();
@@ -1239,7 +1324,7 @@ async fn main() {
     };
     let state = Arc::new(AppState {
         db,
-        tera,
+        themes,
         csrf_secret: auth::load_or_create_csrf_secret("."),
         posts_per_page: env_or("TORCMS_POSTS_PER_PAGE", DEFAULT_POSTS_PER_PAGE),
         setup_token,

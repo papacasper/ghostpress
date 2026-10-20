@@ -43,6 +43,10 @@ impl TestServer {
         let templates_src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
         std::os::unix::fs::symlink(&templates_src, dir.path().join("templates"))
             .expect("symlink templates dir");
+        // Same deal for the theme folders (also loaded via a cwd-relative glob).
+        let themes_src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("themes");
+        std::os::unix::fs::symlink(&themes_src, dir.path().join("themes"))
+            .expect("symlink themes dir");
         let port = free_port();
         let bind = format!("127.0.0.1:{port}");
         let bin = env!("CARGO_BIN_EXE_ghostpress");

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ site_name }}{% endblock %}</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --fg: #2b2a28;
+    --bg: #fbf8f2;
+    --muted: #8a8378;
+    --border: #ddd6c7;
+    --accent: #7a3b2e;
+    --err: #a4231a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fg: #e8e2d4;
+      --bg: #1c1a16;
+      --muted: #9b9484;
+      --border: #3a362c;
+      --accent: #d98f7a;
+      --err: #e2766a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    max-width: 40rem;
+    margin: 3rem auto;
+    padding: 0 1.5rem;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--fg);
+    background: var(--bg);
+  }
+  a { color: var(--accent); }
+  header.site-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 3px double var(--border);
+  }
+  header.site-header a {
+    font-size: 1.8rem;
+    font-weight: normal;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+    color: var(--fg);
+  }
+  nav {
+    margin-top: 0.75rem;
+    font-family: Georgia, serif;
+    font-size: 0.85rem;
+    font-variant: small-caps;
+  }
+  nav a { margin: 0 0.6rem; }
+  h1, h2, h3 { line-height: 1.3; font-weight: normal; font-variant: small-caps; }
+  h1 { font-size: 1.7rem; }
+  h2 { font-size: 1.25rem; }
+  article { margin-bottom: 3rem; }
+  time { color: var(--muted); font-style: italic; font-size: 0.9rem; }
+  textarea, input, button { font-family: inherit; font-size: 1rem; }
+  textarea, input[type="text"], input[type="password"] {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+  }
+  textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .post-list-item { margin-bottom: 2rem; }
+  .err { color: var(--err); }
+  form.inline { display: inline; }
+  button {
+    cursor: pointer;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--fg);
+    background: transparent;
+    color: var(--fg);
+    font-variant: small-caps;
+  }
+  button:hover { background: var(--fg); color: var(--bg); }
+  footer.custom-footer {
+    margin-top: 3.5rem;
+    padding-top: 1.5rem;
+    border-top: 3px double var(--border);
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+  {% if custom_css %}{{ custom_css | safe }}{% endif %}
+</style>
+</head>
+<body>
+{% if custom_header_html %}<div class="custom-header">{{ custom_header_html | safe }}</div>{% endif %}
+<header class="site-header">
+  <a href="/">{{ site_name }}</a>
+  <nav>
+    {% if logged_in %}
+      <a href="/admin">admin</a>
+      <form class="inline" method="post" action="/admin/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">logout</button>
+      </form>
+    {% else %}
+      <a href="/admin/login">login</a>
+    {% endif %}
+  </nav>
+</header>
+{% if custom_body_html %}<div class="custom-body">{{ custom_body_html | safe }}</div>{% endif %}
+{% block content %}{% endblock %}
+{% if custom_footer_html %}<footer class="custom-footer">{{ custom_footer_html | safe }}</footer>{% endif %}
+</body>
+</html>
