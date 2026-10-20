@@ -78,6 +78,7 @@ fn find_first(dir: &Path, names: &[&str]) -> Option<PathBuf> {
 /// `replace_movies`. Pure filesystem reads, no network access.
 pub fn scan_movies(movies_dir: &Path) -> Vec<Movie> {
     let mut out = Vec::new();
+    let mut seen_slugs: std::collections::HashSet<String> = std::collections::HashSet::new();
     let Ok(entries) = std::fs::read_dir(movies_dir) else {
         return out;
     };
@@ -91,7 +92,7 @@ pub fn scan_movies(movies_dir: &Path) -> Vec<Movie> {
         };
         let folder_name = entry.file_name().to_string_lossy().into_owned();
         let (title, year) = parse_folder_name(&folder_name);
-        let slug = if year.is_empty() {
+        let base_slug = if year.is_empty() {
             slugify(&title)
         } else {
             format!("{}-{}", slugify(&title), year)
@@ -103,6 +104,17 @@ pub fn scan_movies(movies_dir: &Path) -> Vec<Movie> {
                 .to_string_lossy()
                 .replace('\\', "/")
         };
+        // Two different folders can normalize to the same slug (re-releases,
+        // differently-punctuated titles, missing year) — disambiguate with a
+        // numeric suffix rather than letting the DB's UNIQUE constraint
+        // reject the insert and crash the scan.
+        let mut slug = base_slug.clone();
+        let mut n = 2;
+        while seen_slugs.contains(&slug) {
+            slug = format!("{base_slug}-{n}");
+            n += 1;
+        }
+        seen_slugs.insert(slug.clone());
         out.push(Movie {
             slug,
             title,
@@ -156,12 +168,17 @@ pub fn init_schema(conn: &Connection) {
 pub fn replace_movies(conn: &Connection, movies: &[Movie]) {
     conn.execute("DELETE FROM media_movies", []).expect("clear movies");
     for m in movies {
-        conn.execute(
+        let result = conn.execute(
             "INSERT INTO media_movies (slug, title, year, video_rel, poster_rel)
              VALUES (?1, ?2, ?3, ?4, ?5)",
             params![m.slug, m.title, m.year, m.video_rel, m.poster_rel],
-        )
-        .expect("insert movie");
+        );
+        // A single bad row (e.g. an unexpected slug collision) should drop
+        // that row, not panic the request thread while it holds the shared
+        // DB lock and take the rest of the site down with it.
+        if let Err(e) = result {
+            eprintln!("media scan: skipping {:?}: {e}", m.slug);
+        }
     }
 }
 

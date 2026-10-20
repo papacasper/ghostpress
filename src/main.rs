@@ -120,7 +120,7 @@ fn render_markdown(md: &str) -> String {
 
 fn current_user(state: &AppState, cookies: &Cookies) -> Option<i64> {
     let token = cookies.get(auth::SESSION_COOKIE)?;
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
     auth::user_id_for_session(&conn, token.value())
 }
 
@@ -133,7 +133,7 @@ fn require_auth(state: &AppState, cookies: &Cookies) -> Result<i64, Redirect> {
 /// disk, e.g. after a theme folder was removed).
 fn active_tera(state: &AppState) -> &Tera {
     let name = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         db::get_setting(&conn, "theme", DEFAULT_THEME)
     };
     state
@@ -163,7 +163,7 @@ fn not_found(state: &AppState, cookies: &Cookies) -> Response {
 fn base_ctx(state: &AppState, cookies: &Cookies, logged_in: bool) -> Context {
     let mut ctx = Context::new();
     let (name, custom_css, header_html, body_html, footer_html) = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         (
             db::get_setting(&conn, "site_name", DEFAULT_SITE_NAME),
             db::get_setting(&conn, "custom_css", ""),
@@ -221,7 +221,7 @@ async fn index(State(state): State<Arc<AppState>>, cookies: Cookies, Query(q): Q
     // Fetch one extra row to know whether a next page exists, without a
     // separate COUNT(*) query.
     let mut posts: Vec<PostRow> = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         let mut stmt = conn
             .prepare("SELECT id, slug, title, body_md, body_html, published, created_at FROM posts WHERE published = 1 ORDER BY created_at DESC LIMIT ?1 OFFSET ?2")
             .unwrap();
@@ -260,7 +260,7 @@ async fn show_post(
     Path(slug): Path<String>,
 ) -> Response {
     let (post, tags): (Option<PostRow>, Vec<String>) = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         let post: Option<PostRow> = conn
             .query_row(
                 "SELECT id, slug, title, body_md, body_html, published, created_at FROM posts WHERE slug = ?1",
@@ -291,7 +291,7 @@ async fn show_page(
     // `pages` has the same shape as `posts` (static content vs. dated
     // posts), so PostRow/row_to_post are reused as-is.
     let page: Option<PostRow> = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         conn.query_row(
             "SELECT id, slug, title, body_md, body_html, published, created_at FROM pages WHERE slug = ?1",
             [&slug],
@@ -317,7 +317,7 @@ async fn show_tag(
 ) -> Response {
     let logged_in = current_user(&state, &cookies).is_some();
     let posts: Vec<PostRow> = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         let ids = db::post_ids_for_tag(&conn, &tag);
         ids.into_iter()
             .filter_map(|id| {
@@ -339,7 +339,7 @@ async fn show_tag(
 
 async fn feed_xml(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
     let (posts, site_name, site_url_setting): (Vec<PostRow>, String, String) = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         let mut stmt = conn
             .prepare("SELECT id, slug, title, body_md, body_html, published, created_at FROM posts WHERE published = 1 ORDER BY created_at DESC LIMIT 20")
             .unwrap();
@@ -393,7 +393,7 @@ fn xml_escape(s: &str) -> String {
 
 async fn healthz(State(state): State<Arc<AppState>>) -> Response {
     let ok = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         conn.query_row("SELECT 1", [], |_| Ok(())).is_ok()
     };
     if ok {
@@ -426,7 +426,7 @@ async fn setup_page(
     Query(q): Query<SetupQuery>,
 ) -> Response {
     let exists = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         db::users_exist(&conn)
     };
     if exists {
@@ -451,7 +451,7 @@ async fn setup_submit(
     cookies: Cookies,
     Form(form): Form<SetupForm>,
 ) -> Response {
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
     if db::users_exist(&conn) {
         drop(conn);
         return not_found(&state, &cookies);
@@ -499,7 +499,7 @@ struct LoginForm {
 
 async fn login_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> Response {
     let exists = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         db::users_exist(&conn)
     };
     if !exists {
@@ -514,7 +514,7 @@ async fn login_submit(
     cookies: Cookies,
     Form(form): Form<LoginForm>,
 ) -> Response {
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
 
     // Per-username throttle — see auth::locked_for for why this isn't per-IP.
     if let Some(remaining) = auth::locked_for(&conn, &form.username) {
@@ -559,7 +559,7 @@ async fn logout(State(state): State<Arc<AppState>>, cookies: Cookies, Form(form)
         return (StatusCode::FORBIDDEN, "bad csrf token").into_response();
     }
     if let Some(cookie) = cookies.get(auth::SESSION_COOKIE) {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         auth::destroy_session(&conn, cookie.value());
         db::log_action(&conn, "logout", "");
     }
@@ -574,7 +574,7 @@ async fn admin_dashboard(State(state): State<Arc<AppState>>, cookies: Cookies) -
         return Redirect::to("/admin/login").into_response();
     }
     let (posts, pages): (Vec<PostRow>, Vec<PostRow>) = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         let mut post_stmt = conn
             .prepare("SELECT id, slug, title, body_md, body_html, published, created_at FROM posts ORDER BY created_at DESC")
             .unwrap();
@@ -657,7 +657,7 @@ async fn create_post(
     let body_html = render_markdown(&form.body_md);
     let now = OffsetDateTime::now_utc();
     let created_at = format!("{}-{:02}-{:02}", now.year(), u8::from(now.month()), now.day());
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
     let res = conn.execute(
         "INSERT INTO posts (slug, title, body_md, body_html, published, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![form.slug, form.title, form.body_md, body_html, form.published.is_some() as i64, created_at],
@@ -687,7 +687,7 @@ async fn edit_post_page(
         return Redirect::to("/admin/login").into_response();
     }
     let post: Option<PostRow> = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         conn.query_row(
             "SELECT id, slug, title, body_md, body_html, published, created_at FROM posts WHERE id = ?1",
             [id],
@@ -698,7 +698,7 @@ async fn edit_post_page(
     match post {
         Some(p) => {
             let tags_value = {
-                let conn = state.db.0.lock().unwrap();
+                let conn = state.db.lock();
                 db::tags_for_post(&conn, p.id).join(", ")
             };
             let mut ctx = base_ctx(&state, &cookies, true);
@@ -735,7 +735,7 @@ async fn update_post(
     }
 
     let body_html = render_markdown(&form.body_md);
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
     // Save the pre-update state as a revision before overwriting it.
     if let Ok((old_title, old_body)) = conn.query_row(
         "SELECT title, body_md FROM posts WHERE id = ?1",
@@ -770,7 +770,7 @@ async fn delete_post(
     if !verify_csrf(&state, &cookies, &form.csrf_token) {
         return (StatusCode::FORBIDDEN, "bad csrf token").into_response();
     }
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
     let _ = conn.execute("DELETE FROM posts WHERE id = ?1", [id]);
     db::log_action(&conn, "post_deleted", &format!("id {id}"));
     Redirect::to("/admin").into_response()
@@ -786,7 +786,7 @@ async fn revisions_page(
     if require_auth(&state, &cookies).is_err() {
         return Redirect::to("/admin/login").into_response();
     }
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
     let post: Option<PostRow> = conn
         .query_row(
             "SELECT id, slug, title, body_md, body_html, published, created_at FROM posts WHERE id = ?1",
@@ -823,7 +823,7 @@ async fn restore_revision(
     if !verify_csrf(&state, &cookies, &form.csrf_token) {
         return (StatusCode::FORBIDDEN, "bad csrf token").into_response();
     }
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
     let Some((post_id, title, body_md)) = db::get_revision(&conn, revision_id) else {
         drop(conn);
         return not_found(&state, &cookies);
@@ -882,7 +882,7 @@ async fn create_page(
     let body_html = render_markdown(&form.body_md);
     let now = OffsetDateTime::now_utc();
     let created_at = format!("{}-{:02}-{:02}", now.year(), u8::from(now.month()), now.day());
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
     let res = conn.execute(
         "INSERT INTO pages (slug, title, body_md, body_html, published, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![form.slug, form.title, form.body_md, body_html, form.published.is_some() as i64, created_at],
@@ -909,7 +909,7 @@ async fn edit_page_page(
         return Redirect::to("/admin/login").into_response();
     }
     let page: Option<PostRow> = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         conn.query_row(
             "SELECT id, slug, title, body_md, body_html, published, created_at FROM pages WHERE id = ?1",
             [id],
@@ -949,7 +949,7 @@ async fn update_page(
         return render(active_tera(&state), "admin_page_edit.html", &ctx).into_response();
     }
     let body_html = render_markdown(&form.body_md);
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
     let res = conn.execute(
         "UPDATE pages SET slug = ?1, title = ?2, body_md = ?3, body_html = ?4, published = ?5 WHERE id = ?6",
         params![form.slug, form.title, form.body_md, body_html, form.published.is_some() as i64, id],
@@ -975,7 +975,7 @@ async fn delete_page(
     if !verify_csrf(&state, &cookies, &form.csrf_token) {
         return (StatusCode::FORBIDDEN, "bad csrf token").into_response();
     }
-    let conn = state.db.0.lock().unwrap();
+    let conn = state.db.lock();
     let _ = conn.execute("DELETE FROM pages WHERE id = ?1", [id]);
     db::log_action(&conn, "page_deleted", &format!("id {id}"));
     Redirect::to("/admin").into_response()
@@ -1083,7 +1083,7 @@ async fn delete_media_route(
     }
     let deleted = uploads::delete_media(&form.name).is_ok();
     if deleted {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         db::log_action(&conn, "media_deleted", &form.name);
     }
     Redirect::to("/admin/media").into_response()
@@ -1094,7 +1094,7 @@ async fn delete_media_route(
 async fn movies_index(State(state): State<Arc<AppState>>, cookies: Cookies) -> Response {
     let logged_in = current_user(&state, &cookies).is_some();
     let movies = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         media::list_movies(&conn)
     };
     let mut ctx = base_ctx(&state, &cookies, logged_in);
@@ -1105,7 +1105,7 @@ async fn movies_index(State(state): State<Arc<AppState>>, cookies: Cookies) -> R
 async fn movie_show(State(state): State<Arc<AppState>>, cookies: Cookies, Path(slug): Path<String>) -> Response {
     let logged_in = current_user(&state, &cookies).is_some();
     let movie = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         media::get_movie(&conn, &slug)
     };
     let Some(movie) = movie else {
@@ -1123,7 +1123,7 @@ async fn library_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> R
         return Redirect::to("/admin/login").into_response();
     }
     let count = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         media::movie_count(&conn)
     };
     let mut ctx = base_ctx(&state, &cookies, true);
@@ -1143,7 +1143,7 @@ async fn library_scan(State(state): State<Arc<AppState>>, cookies: Cookies, Form
         let movies = tokio::task::spawn_blocking(move || media::scan_movies(&dir))
             .await
             .unwrap_or_default();
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         let count = movies.len();
         media::replace_movies(&conn, &movies);
         db::log_action(&conn, "media_library_scanned", &format!("{count} movies"));
@@ -1182,7 +1182,7 @@ async fn password_submit(
     }
 
     let error = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         let current_hash = auth::password_hash_for_id(&conn, uid);
         match current_hash {
             Some(hash) if !auth::verify_password(&form.current_password, &hash) => {
@@ -1225,7 +1225,7 @@ async fn settings_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> 
         return Redirect::to("/admin/login").into_response();
     }
     let (site_url, theme) = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         (db::get_setting(&conn, "site_url", ""), db::get_setting(&conn, "theme", DEFAULT_THEME))
     };
     let mut available_themes: Vec<&String> = state.themes.keys().collect();
@@ -1255,7 +1255,7 @@ async fn settings_submit(
     // doesn't match any loaded theme folder (e.g. a stale option from a
     // since-removed theme), rather than silently resetting it to default.
     let theme = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         let current = db::get_setting(&conn, "theme", DEFAULT_THEME);
         match form.theme.as_deref().map(str::trim) {
             Some(t) if state.themes.contains_key(t) => t.to_string(),
@@ -1271,7 +1271,7 @@ async fn settings_submit(
     let body_html = ammonia::clean(&form.custom_body_html.unwrap_or_default());
     let footer_html = ammonia::clean(&form.custom_footer_html.unwrap_or_default());
     {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         db::set_setting(&conn, "site_name", name);
         db::set_setting(&conn, "site_url", &site_url);
         db::set_setting(&conn, "theme", &theme);
@@ -1300,7 +1300,7 @@ async fn audit_log_page(State(state): State<Arc<AppState>>, cookies: Cookies) ->
         return Redirect::to("/admin/login").into_response();
     }
     let entries = {
-        let conn = state.db.0.lock().unwrap();
+        let conn = state.db.lock();
         db::recent_audit_log(&conn, 200)
     };
     let mut ctx = base_ctx(&state, &cookies, true);
@@ -1359,7 +1359,7 @@ async fn fallback_404(State(state): State<Arc<AppState>>, cookies: Cookies) -> R
 /// being written to, unlike `cp`) via sqlite's own backup API.
 fn backup(dest: &str) {
     let db = db::open(DB_PATH);
-    let conn = db.0.lock().unwrap();
+    let conn = db.lock();
     let mut dst = rusqlite::Connection::open(dest).expect("open backup destination");
     {
         let bk = rusqlite::backup::Backup::new(&conn, &mut dst).expect("init backup");
@@ -1380,7 +1380,7 @@ async fn main() {
     let themes = load_themes();
     let db = db::open(DB_PATH);
     let setup_token = {
-        let conn = db.0.lock().unwrap();
+        let conn = db.lock();
         media::init_schema(&conn);
         if db::users_exist(&conn) {
             None
@@ -1414,7 +1414,7 @@ async fn main() {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
             loop {
                 interval.tick().await;
-                let conn = state.db.0.lock().unwrap();
+                let conn = state.db.lock();
                 auth::cleanup_expired_sessions(&conn);
             }
         });

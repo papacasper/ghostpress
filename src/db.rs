@@ -1,7 +1,19 @@
 use rusqlite::{Connection, OptionalExtension};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 pub struct Db(pub Mutex<Connection>);
+
+impl Db {
+    /// Locks the connection, recovering from a poisoned mutex instead of
+    /// panicking. A panic in one request while holding this lock (e.g. a
+    /// bad insert) must not take down every other request on the site for
+    /// the rest of the process's life — the connection itself is still
+    /// perfectly usable after a panic elsewhere, so there's nothing to
+    /// actually recover.
+    pub fn lock(&self) -> MutexGuard<'_, Connection> {
+        self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
 
 pub fn open(path: &str) -> Db {
     let conn = Connection::open(path).expect("open sqlite db");
