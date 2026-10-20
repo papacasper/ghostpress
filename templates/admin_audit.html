@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}audit log — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>audit log</h1>
+<p>Local-only record of admin actions. No client-identifying info is ever recorded here.</p>
+<table style="width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.9rem;">
+<thead>
+<tr><th style="text-align:left; border-bottom:1px solid #777;">when</th>
+    <th style="text-align:left; border-bottom:1px solid #777;">action</th>
+    <th style="text-align:left; border-bottom:1px solid #777;">detail</th></tr>
+</thead>
+<tbody>
+{% for e in entries %}
+<tr><td>{{ e.2 }}</td><td>{{ e.0 }}</td><td>{{ e.1 }}</td></tr>
+{% else %}
+<tr><td colspan="3">no entries yet</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

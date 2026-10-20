@@ -1,0 +1,18 @@
+[Unit]
+Description=tor-cms live test instance (loopback-only, fronted by Tor hidden service)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/active/tor-cms-live
+ExecStart=%h/dev/active/tor-cms-live/tor-cms
+Environment=TORCMS_BIND_ADDR=127.0.0.1:8899
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=%h/dev/active/tor-cms-live
+
+[Install]
+WantedBy=default.target

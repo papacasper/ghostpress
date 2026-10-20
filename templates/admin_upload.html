@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}upload — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>upload image</h1>
+<p style="font-family: sans-serif; font-size: 0.85rem; color: #777;">
+  jpeg, png, static webp, or animated/static gif — the file is fully
+  decoded and re-encoded on the server (frame by frame for gif), which
+  strips EXIF/metadata (location, device, timestamps) and the original
+  filename. Max 15MB, downscaled if over 2500px on a side. Animated webp
+  is not supported — re-export it as an animated gif first.
+</p>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+{% if uploaded_path %}
+  <p>uploaded:</p>
+  <img src="{{ uploaded_path }}" alt="" style="max-width:100%;">
+  <p>markdown to paste into a post:</p>
+  <input type="text" readonly value="{{ markdown_snippet }}">
+{% endif %}
+<form method="post" action="/admin/upload" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif" required>
+  <button type="submit">upload</button>
+</form>
+<p><a href="/admin/media">media library</a> · <a href="/admin">back to admin</a></p>
+{% endblock %}

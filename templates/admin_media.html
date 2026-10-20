@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}media — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>media library</h1>
+<p><a href="/admin/upload">upload new</a> · <a href="/admin">back to admin</a></p>
+{% for f in files %}
+<div class="post-list-item">
+  <img src="/uploads/{{ f.name }}" alt="" style="max-width:120px; max-height:120px; display:block; margin-bottom:0.4rem;">
+  <input type="text" readonly value="![](/uploads/{{ f.name }})">
+  <span style="font-family: sans-serif; font-size: 0.8rem; color: #777;">{{ f.name }} — {{ f.size_kb }} KB</span>
+  <form class="inline" method="post" action="/admin/media/delete">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="name" value="{{ f.name }}">
+    <button type="submit">delete</button>
+  </form>
+</div>
+{% else %}
+<p>No uploads yet.</p>
+{% endfor %}
+{% endblock %}

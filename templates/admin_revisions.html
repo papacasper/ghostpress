@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}revisions — {{ post.title }} — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>revision history — {{ post.title }}</h1>
+<p><a href="/admin/edit/{{ post.id }}">&larr; back to edit</a></p>
+{% for r in revisions %}
+<div class="post-list-item">
+  <strong>{{ r.1 }}</strong> — <time>{{ r.2 }}</time>
+  <form class="inline" method="post" action="/admin/revisions/restore/{{ r.0 }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">restore this version</button>
+  </form>
+</div>
+{% else %}
+<p>No revisions yet — revisions are saved automatically each time this post is edited.</p>
+{% endfor %}
+{% endblock %}

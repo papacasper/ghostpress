@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}first-run setup — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>create admin account</h1>
+<p>No admin account exists yet. The first account created here becomes the
+site's only admin — once it exists, this page stops working.</p>
+<p><strong>Setup token required</strong> — printed to the server's own
+console (stdout) when it started with no admin account yet. Whoever can
+read that console output can create the account; reaching this URL alone is
+not enough.</p>
+<p><strong>If you're migrating this site to a new machine</strong>: create
+this account right after starting the server, using the token it printed on
+that boot.</p>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<form method="post" action="/setup">
+  <input type="text" name="token" placeholder="setup token (from server console)" value="{{ token_value | default(value='') }}" required>
+  <input type="text" name="username" placeholder="username" autocomplete="username" required>
+  <input type="password" name="password" placeholder="password (min 8 characters)" autocomplete="new-password" required>
+  <input type="password" name="confirm_password" placeholder="confirm password" autocomplete="new-password" required>
+  <button type="submit">create account</button>
+</form>
+{% endblock %}

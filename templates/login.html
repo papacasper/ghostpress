@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}login — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>login</h1>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<form method="post" action="/admin/login">
+  <input type="text" name="username" placeholder="username" autocomplete="username" required>
+  <input type="password" name="password" placeholder="password" autocomplete="current-password" required>
+  <button type="submit">log in</button>
+</form>
+{% endblock %}

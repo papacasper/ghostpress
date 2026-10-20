@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}admin — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>admin</h1>
+<p>
+  <a href="/admin/new">+ new post</a> ·
+  <a href="/admin/upload">upload image</a> ·
+  <a href="/admin/media">media library</a> ·
+  <a href="/admin/settings">settings</a> ·
+  <a href="/admin/password">change password</a> ·
+  <a href="/admin/audit">audit log</a> ·
+  <a href="/feed.xml">rss feed</a>
+</p>
+{% for post in posts %}
+<div class="post-list-item">
+  <strong>{{ post.title }}</strong>
+  {% if not post.published %}<em>(draft)</em>{% endif %}
+  — <a href="/admin/edit/{{ post.id }}">edit</a>
+  <form class="inline" method="post" action="/admin/delete/{{ post.id }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">delete</button>
+  </form>
+</div>
+{% else %}
+<p>No posts yet.</p>
+{% endfor %}
+
+<h1>pages</h1>
+<p><a href="/admin/pages/new">+ new page</a></p>
+{% for page in pages %}
+<div class="post-list-item">
+  <strong>{{ page.title }}</strong>
+  {% if not page.published %}<em>(draft)</em>{% endif %}
+  — <a href="/admin/pages/edit/{{ page.id }}">edit</a>
+  <form class="inline" method="post" action="/admin/pages/delete/{{ page.id }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">delete</button>
+  </form>
+</div>
+{% else %}
+<p>No pages yet.</p>
+{% endfor %}
+{% endblock %}

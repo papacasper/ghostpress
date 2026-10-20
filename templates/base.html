@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ site_name }}{% endblock %}</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { max-width: 42rem; margin: 2rem auto; padding: 0 1rem;
+         font-family: Georgia, "Times New Roman", serif; line-height: 1.6; }
+  nav { margin-bottom: 2rem; font-family: sans-serif; font-size: 0.9rem; }
+  nav a { margin-right: 1rem; }
+  h1, h2 { line-height: 1.25; }
+  article { margin-bottom: 2.5rem; }
+  time { color: #777; font-family: sans-serif; font-size: 0.85rem; }
+  textarea, input { width: 100%; font-family: monospace; font-size: 1rem;
+                    box-sizing: border-box; margin-bottom: 0.75rem; padding: 0.4rem; }
+  .post-list-item { margin-bottom: 1.5rem; }
+  .err { color: #b00020; }
+  form.inline { display: inline; }
+  button { font-family: sans-serif; cursor: pointer; }
+</style>
+</head>
+<body>
+<nav>
+  <a href="/">{{ site_name }}</a>
+  {% if logged_in %}
+    <a href="/admin">admin</a>
+    <form class="inline" method="post" action="/admin/logout">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">logout</button>
+    </form>
+  {% else %}
+    <a href="/admin/login">login</a>
+  {% endif %}
+</nav>
+{% block content %}{% endblock %}
+</body>
+</html>

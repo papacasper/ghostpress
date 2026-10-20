@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}#{{ tag }} — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>#{{ tag }}</h1>
+{% for post in posts %}
+<div class="post-list-item">
+  <h2><a href="/post/{{ post.slug }}">{{ post.title }}</a></h2>
+  <time>{{ post.created_at }}</time>
+</div>
+{% else %}
+<p>No posts tagged "{{ tag }}".</p>
+{% endfor %}
+{% endblock %}

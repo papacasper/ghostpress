@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}edit — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>{% if post %}edit post{% else %}new post{% endif %}</h1>
+{% if post and post.id %}<p><a href="/admin/revisions/{{ post.id }}">revision history</a></p>{% endif %}
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+{% if preview %}
+<h2>preview</h2>
+<article>{{ post.body_html | safe }}</article>
+<hr>
+{% endif %}
+<form method="post" action="{{ form_action }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="text" name="title" placeholder="title" value="{{ post.title | default(value='') }}" required>
+  <input type="text" name="slug" placeholder="slug (url path)" value="{{ post.slug | default(value='') }}" required>
+  <textarea name="body_md" rows="20" placeholder="markdown body" required>{{ post.body_md | default(value='') }}</textarea>
+  <input type="text" name="tags" placeholder="tags (comma-separated)" value="{{ tags_value | default(value='') }}">
+  <label>
+    <input type="checkbox" name="published" value="1" style="width:auto;"
+      {% if post and post.published %}checked{% endif %}>
+    published
+  </label>
+  <button type="submit" name="action" value="save">save</button>
+  <button type="submit" name="action" value="preview">preview</button>
+</form>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}edit page — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>{% if page %}edit page{% else %}new page{% endif %}</h1>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+{% if preview %}
+<h2>preview</h2>
+<article>{{ page.body_html | safe }}</article>
+<hr>
+{% endif %}
+<form method="post" action="{{ form_action | default(value='/admin/pages/new') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="text" name="title" placeholder="title" value="{{ page.title | default(value='') }}" required>
+  <input type="text" name="slug" placeholder="slug (served at /p/slug)" value="{{ page.slug | default(value='') }}" required>
+  <textarea name="body_md" rows="20" placeholder="markdown body" required>{{ page.body_md | default(value='') }}</textarea>
+  <label>
+    <input type="checkbox" name="published" value="1" style="width:auto;"
+      {% if page and page.published %}checked{% endif %}>
+    published
+  </label>
+  <button type="submit" name="action" value="save">save</button>
+  <button type="submit" name="action" value="preview">preview</button>
+</form>
+{% endblock %}

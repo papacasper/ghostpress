@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}settings — {{ site_name }}{% endblock %}
+{% block content %}
+<h1>settings</h1>
+{% if success %}<p>{{ success }}</p>{% endif %}
+<form method="post" action="/admin/settings">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="text" name="site_name" placeholder="site name" value="{{ site_name }}" required>
+  <input type="text" name="site_url" placeholder="site url (e.g. http://yourdomain.onion) — used in the RSS feed" value="{{ site_url | default(value='') }}">
+  <button type="submit">save</button>
+</form>
+<p><a href="/admin">back to admin</a></p>
+{% endblock %}

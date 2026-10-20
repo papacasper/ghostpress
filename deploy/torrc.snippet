@@ -1,0 +1,18 @@
+# Append to /etc/tor/torrc (or /etc/tor/torrc.d/tor-cms.conf if your tor
+# package supports a drop-in dir), then: sudo systemctl restart tor
+
+HiddenServiceDir /var/lib/tor/tor-cms/
+HiddenServicePort 80 127.0.0.1:8899
+
+# After the first start, the onion address is at:
+#   sudo cat /var/lib/tor/tor-cms/hostname
+#
+# Notes:
+# - The app binds ONLY to 127.0.0.1:8899 (see src/main.rs BIND_ADDR). Never
+#   change this to 0.0.0.0 — that would make the service reachable directly,
+#   bypassing Tor and exposing the host's real IP to anyone who finds it.
+# - No TLS between tor and the app is needed/used: Tor already provides
+#   end-to-end encryption for the circuit, and this hop is loopback-only.
+# - Do not run this host behind a reverse proxy (e.g. nginx with
+#   X-Forwarded-For) unless you strip/ignore those headers entirely — the app
+#   never reads client-supplied IP headers, by design.
