@@ -1,11 +1,11 @@
-# Append to /etc/tor/torrc (or /etc/tor/torrc.d/tor-cms.conf if your tor
+# Append to /etc/tor/torrc (or /etc/tor/torrc.d/ghostpress.conf if your tor
 # package supports a drop-in dir), then: sudo systemctl restart tor
 
-HiddenServiceDir /var/lib/tor/tor-cms/
+HiddenServiceDir /var/lib/tor/ghostpress/
 HiddenServicePort 80 127.0.0.1:8899
 
 # After the first start, the onion address is at:
-#   sudo cat /var/lib/tor/tor-cms/hostname
+#   sudo cat /var/lib/tor/ghostpress/hostname
 #
 # Notes:
 # - The app binds ONLY to 127.0.0.1:8899 (see src/main.rs BIND_ADDR). Never

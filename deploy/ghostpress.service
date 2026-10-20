@@ -1,15 +1,15 @@
 [Unit]
-Description=tor-cms (loopback-only, serve via Tor hidden service)
+Description=ghostpress (loopback-only, serve via Tor hidden service)
 After=network.target tor.service
 Wants=tor.service
 
 [Service]
 Type=simple
-# Create a dedicated unprivileged user: sudo useradd -r -s /usr/sbin/nologin torcms
-User=torcms
-Group=torcms
-WorkingDirectory=/opt/tor-cms
-ExecStart=/opt/tor-cms/tor-cms
+# Create a dedicated unprivileged user: sudo useradd -r -s /usr/sbin/nologin ghostpress
+User=ghostpress
+Group=ghostpress
+WorkingDirectory=/opt/ghostpress
+ExecStart=/opt/ghostpress/ghostpress
 Restart=on-failure
 RestartSec=5
 
@@ -18,7 +18,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/tor-cms
+ReadWritePaths=/opt/ghostpress
 PrivateDevices=true
 ProtectKernelTunables=true
 ProtectKernelModules=true

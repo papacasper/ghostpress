@@ -18,7 +18,7 @@ use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::services::ServeDir;
 
-const DEFAULT_SITE_NAME: &str = "tor-cms";
+const DEFAULT_SITE_NAME: &str = "ghostpress";
 const DB_PATH: &str = "cms.db";
 const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8899"; // loopback only — pair with a Tor HiddenServiceDir
 const DEFAULT_POSTS_PER_PAGE: i64 = 10;

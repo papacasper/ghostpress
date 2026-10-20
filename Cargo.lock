@@ -539,6 +539,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "ghostpress"
+version = "0.1.0"
+dependencies = [
+ "ammonia",
+ "argon2",
+ "axum",
+ "hmac",
+ "image",
+ "pulldown-cmark",
+ "rand",
+ "rusqlite",
+ "serde",
+ "sha2",
+ "tempfile",
+ "tera",
+ "time",
+ "tokio",
+ "tower-cookies",
+ "tower-http",
+ "ureq",
+]
+
+[[package]]
 name = "gif"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1812,29 +1835,6 @@ dependencies = [
  "futures-sink",
  "pin-project-lite",
  "tokio",
-]
-
-[[package]]
-name = "tor-cms"
-version = "0.1.0"
-dependencies = [
- "ammonia",
- "argon2",
- "axum",
- "hmac",
- "image",
- "pulldown-cmark",
- "rand",
- "rusqlite",
- "serde",
- "sha2",
- "tempfile",
- "tera",
- "time",
- "tokio",
- "tower-cookies",
- "tower-http",
- "ureq",
 ]
 
 [[package]]

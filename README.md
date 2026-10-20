@@ -1,4 +1,4 @@
-# tor-cms
+# ghostpress
 
 Minimal CMS in Rust (Axum + SQLite), built to run as a Tor hidden service
 without leaking the host's real IP.
@@ -82,7 +82,7 @@ users;"`) to re-open `/setup`.
 ## Run
 
 ```sh
-./target/release/tor-cms
+./target/release/ghostpress
 ```
 
 Visit `http://127.0.0.1:8899` locally to confirm it works before wiring up
@@ -93,9 +93,9 @@ Tor.
 1. Copy `deploy/torrc.snippet` into your Tor config and restart Tor — see
    that file for details and the security notes.
 2. Install the binary + `templates/` directory somewhere like
-   `/opt/tor-cms/` and adapt/install `deploy/tor-cms.service` with
-   `systemctl enable --now tor-cms`.
-3. Get the onion address: `sudo cat /var/lib/tor/tor-cms/hostname`.
+   `/opt/ghostpress/` and adapt/install `deploy/ghostpress.service` with
+   `systemctl enable --now ghostpress`.
+3. Get the onion address: `sudo cat /var/lib/tor/ghostpress/hostname`.
 
 ## Static pages vs. posts
 
@@ -216,7 +216,7 @@ Two knobs can be tuned without a rebuild, read at startup:
 ## Backups
 
 ```sh
-./target/release/tor-cms backup /path/to/backup.db
+./target/release/ghostpress backup /path/to/backup.db
 ```
 
 Uses SQLite's own online-backup API (`rusqlite::backup`), safe to run

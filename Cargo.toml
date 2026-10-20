@@ -1,5 +1,5 @@
 [package]
-name = "tor-cms"
+name = "ghostpress"
 version = "0.1.0"
 edition = "2021"
 

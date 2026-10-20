@@ -45,7 +45,7 @@ impl TestServer {
             .expect("symlink templates dir");
         let port = free_port();
         let bind = format!("127.0.0.1:{port}");
-        let bin = env!("CARGO_BIN_EXE_tor-cms");
+        let bin = env!("CARGO_BIN_EXE_ghostpress");
 
         let mut cmd = Command::new(bin);
         cmd.current_dir(dir.path())
@@ -55,7 +55,7 @@ impl TestServer {
         for (k, v) in extra_env {
             cmd.env(k, v);
         }
-        let mut child = cmd.spawn().expect("spawn tor-cms binary");
+        let mut child = cmd.spawn().expect("spawn ghostpress binary");
 
         let stdout = child.stdout.take().expect("capture stdout");
         let (tx, rx) = mpsc::channel();
