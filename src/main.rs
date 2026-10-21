@@ -1,6 +1,5 @@
 mod auth;
 mod db;
-mod media;
 mod uploads;
 
 use axum::{
@@ -93,11 +92,6 @@ struct AppState {
     /// `None` once an account already exists; irrelevant from then on since
     /// `/setup` 404s unconditionally in that case.
     setup_token: Option<String>,
-    /// Path to a Jellyfin-style `Movies/` library directory to browse under
-    /// `/watch` (read-only, local disk only — never a network call). `None`
-    /// if `TORCMS_MOVIES_DIR` isn't set, which disables the feature's routes
-    /// and static file serving entirely.
-    movies_dir: Option<std::path::PathBuf>,
 }
 
 #[derive(Serialize, Clone)]
@@ -1089,68 +1083,6 @@ async fn delete_media_route(
     Redirect::to("/admin/media").into_response()
 }
 
-// ---- public: movie library ----
-
-async fn movies_index(State(state): State<Arc<AppState>>, cookies: Cookies) -> Response {
-    let logged_in = current_user(&state, &cookies).is_some();
-    let movies = {
-        let conn = state.db.lock();
-        media::list_movies(&conn)
-    };
-    let mut ctx = base_ctx(&state, &cookies, logged_in);
-    ctx.insert("movies", &movies);
-    render(active_tera(&state), "media_index.html", &ctx).into_response()
-}
-
-async fn movie_show(State(state): State<Arc<AppState>>, cookies: Cookies, Path(slug): Path<String>) -> Response {
-    let logged_in = current_user(&state, &cookies).is_some();
-    let movie = {
-        let conn = state.db.lock();
-        media::get_movie(&conn, &slug)
-    };
-    let Some(movie) = movie else {
-        return not_found(&state, &cookies);
-    };
-    let mut ctx = base_ctx(&state, &cookies, logged_in);
-    ctx.insert("movie", &movie);
-    render(active_tera(&state), "media_item.html", &ctx).into_response()
-}
-
-// ---- admin: movie library scan ----
-
-async fn library_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> Response {
-    if require_auth(&state, &cookies).is_err() {
-        return Redirect::to("/admin/login").into_response();
-    }
-    let count = {
-        let conn = state.db.lock();
-        media::movie_count(&conn)
-    };
-    let mut ctx = base_ctx(&state, &cookies, true);
-    ctx.insert("movie_count", &count);
-    ctx.insert("movies_dir_configured", &state.movies_dir.is_some());
-    render(active_tera(&state), "admin_library.html", &ctx).into_response()
-}
-
-async fn library_scan(State(state): State<Arc<AppState>>, cookies: Cookies, Form(form): Form<CsrfOnly>) -> Response {
-    if require_auth(&state, &cookies).is_err() {
-        return Redirect::to("/admin/login").into_response();
-    }
-    if !verify_csrf(&state, &cookies, &form.csrf_token) {
-        return (StatusCode::FORBIDDEN, "bad csrf token").into_response();
-    }
-    if let Some(dir) = state.movies_dir.clone() {
-        let movies = tokio::task::spawn_blocking(move || media::scan_movies(&dir))
-            .await
-            .unwrap_or_default();
-        let conn = state.db.lock();
-        let count = movies.len();
-        media::replace_movies(&conn, &movies);
-        db::log_action(&conn, "media_library_scanned", &format!("{count} movies"));
-    }
-    Redirect::to("/admin/library").into_response()
-}
-
 // ---- admin: account / settings ----
 
 async fn password_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> Response {
@@ -1325,7 +1257,7 @@ fn add_security_headers(headers: &mut HeaderMap) {
     headers.insert("x-frame-options", "DENY".parse().unwrap());
     headers.insert(
         "content-security-policy",
-        "default-src 'self'; style-src 'unsafe-inline'; img-src 'self'; media-src 'self'; script-src 'none'"
+        "default-src 'self'; style-src 'unsafe-inline'; img-src 'self'; script-src 'none'"
             .parse()
             .unwrap(),
     );
@@ -1381,7 +1313,6 @@ async fn main() {
     let db = db::open(DB_PATH);
     let setup_token = {
         let conn = db.lock();
-        media::init_schema(&conn);
         if db::users_exist(&conn) {
             None
         } else {
@@ -1391,16 +1322,12 @@ async fn main() {
             Some(token)
         }
     };
-    // Unset in local dev (no Movies/ directory to scan); on the live host
-    // it points at the read-only bind mount shared with Jellyfin.
-    let movies_dir = std::env::var("TORCMS_MOVIES_DIR").ok().map(std::path::PathBuf::from);
     let state = Arc::new(AppState {
         db,
         themes,
         csrf_secret: auth::load_or_create_csrf_secret("."),
         posts_per_page: env_or("TORCMS_POSTS_PER_PAGE", DEFAULT_POSTS_PER_PAGE),
         setup_token,
-        movies_dir: movies_dir.clone(),
     });
 
     std::fs::create_dir_all(uploads::UPLOAD_DIR).expect("create uploads dir");
@@ -1451,20 +1378,11 @@ async fn main() {
         .route("/admin/password", get(password_page).post(password_submit))
         .route("/admin/settings", get(settings_page).post(settings_submit))
         .route("/admin/audit", get(audit_log_page))
-        .route("/watch", get(movies_index))
-        .route("/watch/:slug", get(movie_show))
-        .route("/admin/library", get(library_page).post(library_scan))
         .fallback(fallback_404)
         .layer(DefaultBodyLimit::max(FORM_BODY_LIMIT))
         .with_state(state.clone())
         .merge(upload_routes)
         .nest_service("/uploads", ServeDir::new(uploads::UPLOAD_DIR));
-    // Only mounted when TORCMS_MOVIES_DIR is set — read-only, local disk
-    // only, never an outbound network call.
-    let app = match movies_dir {
-        Some(dir) => app.nest_service("/library/movies", ServeDir::new(dir)),
-        None => app,
-    };
     let app = app
         .layer(axum::middleware::from_fn(security_headers_mw))
         .layer(axum::middleware::from_fn(strip_server_header))

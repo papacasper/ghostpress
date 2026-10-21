@@ -7,14 +7,12 @@ Type=simple
 WorkingDirectory=%h/dev/active/ghostpress-live
 ExecStart=%h/dev/active/ghostpress-live/ghostpress
 Environment=TORCMS_BIND_ADDR=127.0.0.1:8899
-Environment=TORCMS_MOVIES_DIR=%h/bigstorage/Movies
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ReadWritePaths=%h/dev/active/ghostpress-live
-ReadOnlyPaths=%h/bigstorage/Movies
 
 [Install]
 WantedBy=default.target

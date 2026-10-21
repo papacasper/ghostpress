@@ -1,9 +1,0 @@
-{% extends "base.html" %}
-{% block title %}{{ movie.title }} — {{ site_name }}{% endblock %}
-{% block content %}
-<h1>{{ movie.title }}{% if movie.year %} ({{ movie.year }}){% endif %}</h1>
-<video controls style="max-width: 100%;" {% if movie.poster_url %}poster="{{ movie.poster_url }}"{% endif %}>
-  <source src="{{ movie.video_url }}">
-</video>
-<p><a href="/watch">&larr; back to library</a></p>
-{% endblock %}
